@@ -1,0 +1,63 @@
+/**
+ * AppLayout Styles
+ */
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Fullscreen mode */
+.app-layout.fullscreen .topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.app-layout.fullscreen:hover .topbar {
+  opacity: 1;
+}
+
+.app-layout.fullscreen .app-content {
+  position: absolute;
+  inset: 0;
+}
+
+.app-layout.fullscreen .main-panel {
+  flex: 1;
+}
+
+.app-layout.fullscreen .main-panel-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.app-layout.fullscreen:hover .main-panel-bottom {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-layout.fullscreen .perf-hud {
+  background: rgba(15, 15, 20, 0.9);
+}
