@@ -2,7 +2,10 @@
 
 An interactive playground for learning WebGL2 techniques. 18 demos covering shaders, geometry, GPU compute, and postprocessing—each with tweakable parameters and real-time performance stats.
 
-![Screenshot placeholder](https://via.placeholder.com/800x400?text=Add+screenshot+here)
+Open webgl.kanteti.me
+
+
+<img width="698" height="563" alt="image" src="https://github.com/user-attachments/assets/30d0576b-7767-4bdf-8969-324fc7dbb361" />
 
 ## What's inside
 
@@ -38,8 +41,6 @@ An interactive playground for learning WebGL2 techniques. 18 demos covering shad
 npm install
 npm run dev
 ```
-
-Open [http://localhost:5173](http://localhost:5173)
 
 ## Tech
 
