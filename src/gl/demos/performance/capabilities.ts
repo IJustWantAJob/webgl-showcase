@@ -1,7 +1,7 @@
 /**
  * WebGL2 Capabilities Demo
  *
- * Displays WebGL2 capabilities and supported extensions.
+ * Displays WebGL2 capabilities and supported extensions on screen.
  */
 
 import { createProgram, createVao, createBuffer, getUniformLocations } from '../../core';
@@ -29,27 +29,96 @@ out vec4 fragColor;
 uniform float u_time;
 uniform vec2 u_resolution;
 
-// Simple grid pattern
+// Display capabilities as visual bars
+uniform float u_maxTextureSize;
+uniform float u_maxViewportDim;
+uniform float u_maxVertexAttribs;
+uniform float u_maxTextureUnits;
+uniform float u_maxDrawBuffers;
+uniform float u_extensionCount;
+
+float drawBar(vec2 uv, float row, float value, float maxVal) {
+  float rowHeight = 0.08;
+  float rowY = 0.85 - row * (rowHeight + 0.02);
+
+  if (uv.y > rowY - rowHeight && uv.y < rowY) {
+    float barWidth = 0.6;
+    float barStart = 0.35;
+
+    if (uv.x > barStart && uv.x < barStart + barWidth) {
+      float fill = (uv.x - barStart) / barWidth;
+      float normalized = value / maxVal;
+
+      if (fill < normalized) {
+        return 1.0;
+      }
+    }
+  }
+  return 0.0;
+}
+
+float drawLabel(vec2 uv, float row) {
+  float rowHeight = 0.08;
+  float rowY = 0.85 - row * (rowHeight + 0.02);
+
+  if (uv.y > rowY - rowHeight && uv.y < rowY && uv.x < 0.33) {
+    return 0.3;
+  }
+  return 0.0;
+}
+
 void main() {
   vec2 uv = v_uv;
 
-  // Dark background with subtle gradient
-  vec3 col = mix(vec3(0.08, 0.1, 0.15), vec3(0.05, 0.07, 0.12), uv.y);
+  // Dark background with grid
+  vec3 col = vec3(0.05, 0.07, 0.12);
 
-  // Grid lines
-  vec2 grid = fract(uv * 20.0);
-  float line = step(0.95, grid.x) + step(0.95, grid.y);
-  col += vec3(0.05) * line;
+  // Subtle grid
+  vec2 grid = fract(uv * 30.0);
+  float gridLine = step(0.96, grid.x) + step(0.96, grid.y);
+  col += vec3(0.02) * gridLine;
 
-  // Animated accent
-  float pulse = sin(u_time * 2.0) * 0.5 + 0.5;
-  float highlight = smoothstep(0.4, 0.6, uv.x) * smoothstep(0.6, 0.4, uv.x);
-  highlight *= smoothstep(0.3, 0.5, uv.y) * smoothstep(0.7, 0.5, uv.y);
-  col += vec3(0.0, 0.3, 0.5) * highlight * pulse * 0.3;
+  // Title area glow
+  if (uv.y > 0.88) {
+    col = mix(col, vec3(0.0, 0.3, 0.5), 0.3);
+  }
+
+  // Draw capability bars
+  vec3 barColor = vec3(0.2, 0.7, 0.9);
+  vec3 labelColor = vec3(0.4, 0.4, 0.5);
+
+  // Row 0: Max Texture Size
+  col += barColor * drawBar(uv, 0.0, u_maxTextureSize, 16384.0);
+  col += labelColor * drawLabel(uv, 0.0);
+
+  // Row 1: Max Viewport
+  col += barColor * drawBar(uv, 1.0, u_maxViewportDim, 16384.0);
+  col += labelColor * drawLabel(uv, 1.0);
+
+  // Row 2: Vertex Attribs
+  col += vec3(0.9, 0.5, 0.2) * drawBar(uv, 2.0, u_maxVertexAttribs, 32.0);
+  col += labelColor * drawLabel(uv, 2.0);
+
+  // Row 3: Texture Units
+  col += vec3(0.9, 0.5, 0.2) * drawBar(uv, 3.0, u_maxTextureUnits, 32.0);
+  col += labelColor * drawLabel(uv, 3.0);
+
+  // Row 4: Draw Buffers
+  col += vec3(0.5, 0.9, 0.3) * drawBar(uv, 4.0, u_maxDrawBuffers, 16.0);
+  col += labelColor * drawLabel(uv, 4.0);
+
+  // Row 5: Extensions
+  col += vec3(0.5, 0.9, 0.3) * drawBar(uv, 5.0, u_extensionCount, 50.0);
+  col += labelColor * drawLabel(uv, 5.0);
+
+  // Animated scan line
+  float scanY = fract(u_time * 0.2);
+  float scan = smoothstep(0.0, 0.01, abs(uv.y - scanY)) * 0.95 + 0.05;
+  col *= scan + 0.3;
 
   // Border glow
-  float border = smoothstep(0.0, 0.1, uv.x) * smoothstep(1.0, 0.9, uv.x);
-  border *= smoothstep(0.0, 0.1, uv.y) * smoothstep(1.0, 0.9, uv.y);
+  float border = smoothstep(0.0, 0.05, uv.x) * smoothstep(1.0, 0.95, uv.x);
+  border *= smoothstep(0.0, 0.05, uv.y) * smoothstep(1.0, 0.95, uv.y);
   col = mix(vec3(0.0, 0.5, 0.8) * 0.3, col, border);
 
   fragColor = vec4(col, 1.0);
@@ -64,7 +133,13 @@ class CapabilitiesDemo implements DemoInstance {
   private uniforms: Record<string, WebGLUniformLocation | null> = {};
   private stats: StatsTracker;
   private isPaused = false;
-  private capabilities: Record<string, string | number | boolean> = {};
+
+  private maxTextureSize = 0;
+  private maxViewportDim = 0;
+  private maxVertexAttribs = 0;
+  private maxTextureUnits = 0;
+  private maxDrawBuffers = 0;
+  private extensionCount = 0;
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
@@ -75,59 +150,30 @@ class CapabilitiesDemo implements DemoInstance {
   private gatherCapabilities(): void {
     const gl = this.gl;
 
-    // Basic info
-    this.capabilities['Vendor'] = gl.getParameter(gl.VENDOR);
-    this.capabilities['Renderer'] = gl.getParameter(gl.RENDERER);
-    this.capabilities['Version'] = gl.getParameter(gl.VERSION);
-    this.capabilities['GLSL Version'] = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
+    this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    const viewportDims = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    this.maxViewportDim = Math.max(viewportDims[0], viewportDims[1]);
+    this.maxVertexAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
+    this.maxTextureUnits = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
+    this.maxDrawBuffers = gl.getParameter(gl.MAX_DRAW_BUFFERS);
 
-    // Limits
-    this.capabilities['Max Texture Size'] = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    this.capabilities['Max Cube Map Size'] = gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE);
-    this.capabilities['Max Render Buffer Size'] = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
-    this.capabilities['Max Viewport Dims'] = gl.getParameter(gl.MAX_VIEWPORT_DIMS).join(' x ');
-    this.capabilities['Max Vertex Attribs'] = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
-    this.capabilities['Max Vertex Uniforms'] = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS);
-    this.capabilities['Max Fragment Uniforms'] = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS);
-    this.capabilities['Max Varying Vectors'] = gl.getParameter(gl.MAX_VARYING_VECTORS);
-    this.capabilities['Max Texture Units'] = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
-    this.capabilities['Max Combined Textures'] = gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
-
-    // WebGL2 specific
-    this.capabilities['Max 3D Texture Size'] = gl.getParameter(gl.MAX_3D_TEXTURE_SIZE);
-    this.capabilities['Max Array Texture Layers'] = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
-    this.capabilities['Max Color Attachments'] = gl.getParameter(gl.MAX_COLOR_ATTACHMENTS);
-    this.capabilities['Max Draw Buffers'] = gl.getParameter(gl.MAX_DRAW_BUFFERS);
-    this.capabilities['Max Samples'] = gl.getParameter(gl.MAX_SAMPLES);
-    this.capabilities['Max Uniform Buffer Bindings'] = gl.getParameter(gl.MAX_UNIFORM_BUFFER_BINDINGS);
-    this.capabilities['Max Transform Feedback Buffers'] = gl.getParameter(gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS);
-
-    // Extensions
     const extensions = gl.getSupportedExtensions() || [];
-    this.capabilities['Extensions Count'] = extensions.length;
+    this.extensionCount = extensions.length;
 
-    // Check important extensions
-    const importantExtensions = [
-      'EXT_color_buffer_float',
-      'OES_texture_float_linear',
-      'EXT_disjoint_timer_query_webgl2',
-      'WEBGL_compressed_texture_s3tc',
-      'WEBGL_compressed_texture_astc',
-      'OES_draw_buffers_indexed',
-      'EXT_texture_filter_anisotropic',
-    ];
-
-    for (const ext of importantExtensions) {
-      this.capabilities[ext] = extensions.includes(ext) ? 'Yes' : 'No';
-    }
-
-    // Log to console for user reference
+    // Log detailed info to console
     console.log('=== WebGL2 Capabilities ===');
-    for (const [key, value] of Object.entries(this.capabilities)) {
-      console.log(`${key}: ${value}`);
-    }
-    console.log('=== All Extensions ===');
-    console.log(extensions.join('\n'));
+    console.log(`Vendor: ${gl.getParameter(gl.VENDOR)}`);
+    console.log(`Renderer: ${gl.getParameter(gl.RENDERER)}`);
+    console.log(`Version: ${gl.getParameter(gl.VERSION)}`);
+    console.log(`GLSL: ${gl.getParameter(gl.SHADING_LANGUAGE_VERSION)}`);
+    console.log(`Max Texture Size: ${this.maxTextureSize}`);
+    console.log(`Max Viewport: ${viewportDims[0]} x ${viewportDims[1]}`);
+    console.log(`Max Vertex Attribs: ${this.maxVertexAttribs}`);
+    console.log(`Max Texture Units: ${this.maxTextureUnits}`);
+    console.log(`Max Draw Buffers: ${this.maxDrawBuffers}`);
+    console.log(`Max 3D Texture Size: ${gl.getParameter(gl.MAX_3D_TEXTURE_SIZE)}`);
+    console.log(`Max Array Layers: ${gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS)}`);
+    console.log(`Extensions (${this.extensionCount}):`, extensions);
   }
 
   async init(): Promise<void> {
@@ -136,7 +182,11 @@ class CapabilitiesDemo implements DemoInstance {
     this.program = createProgram(gl, vertexShader, fragmentShader);
     if (!this.program) throw new Error('Failed to create capabilities shader');
 
-    this.uniforms = getUniformLocations(gl, this.program, ['u_time', 'u_resolution']);
+    this.uniforms = getUniformLocations(gl, this.program, [
+      'u_time', 'u_resolution',
+      'u_maxTextureSize', 'u_maxViewportDim', 'u_maxVertexAttribs',
+      'u_maxTextureUnits', 'u_maxDrawBuffers', 'u_extensionCount',
+    ]);
 
     const positions = new Float32Array([-1, -1, 3, -1, -1, 3]);
 
@@ -173,6 +223,12 @@ class CapabilitiesDemo implements DemoInstance {
 
     gl.uniform1f(this.uniforms.u_time, ctx.time);
     gl.uniform2f(this.uniforms.u_resolution, ctx.width, ctx.height);
+    gl.uniform1f(this.uniforms.u_maxTextureSize, this.maxTextureSize);
+    gl.uniform1f(this.uniforms.u_maxViewportDim, this.maxViewportDim);
+    gl.uniform1f(this.uniforms.u_maxVertexAttribs, this.maxVertexAttribs);
+    gl.uniform1f(this.uniforms.u_maxTextureUnits, this.maxTextureUnits);
+    gl.uniform1f(this.uniforms.u_maxDrawBuffers, this.maxDrawBuffers);
+    gl.uniform1f(this.uniforms.u_extensionCount, this.extensionCount);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.stats.recordDrawCall(1);

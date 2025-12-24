@@ -51,8 +51,21 @@ float noise(vec2 p) {
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// Generate a colorful scene
-vec3 scene(vec2 uv, float time) {
+// Apply saturation
+vec3 applySaturation(vec3 col, float sat) {
+  float gray = dot(col, vec3(0.299, 0.587, 0.114));
+  return mix(vec3(gray), col, sat);
+}
+
+// Apply contrast
+vec3 applyContrast(vec3 col, float contrast) {
+  return (col - 0.5) * contrast + 0.5;
+}
+
+void main() {
+  vec2 uv = v_uv;
+  float time = u_time;
+
   vec3 col = vec3(0.0);
 
   // Sky gradient
@@ -78,13 +91,19 @@ vec3 scene(vec2 uv, float time) {
     col = vec3(0.1, 0.08, 0.15);
   }
 
-  // Water reflection
+  // Water with simple reflection
   if (uv.y < 0.2) {
     float waterY = 0.2 - uv.y;
-    vec2 reflectUV = vec2(uv.x, 0.2 + waterY);
-    reflectUV.x += sin(waterY * 50.0 + time * 2.0) * 0.01;
-    vec3 reflection = scene(reflectUV, time);
-    col = mix(vec3(0.05, 0.1, 0.2), reflection * 0.5, 0.7);
+
+    // Simple water color with distortion
+    float wave = sin(uv.x * 50.0 + time * 2.0) * 0.01;
+    vec3 waterBase = vec3(0.05, 0.1, 0.2);
+
+    // Fake reflection - just sample sky color at mirrored position
+    float reflectY = 0.2 + waterY + wave;
+    vec3 skyReflect = mix(skyBottom, skyTop, reflectY);
+
+    col = mix(waterBase, skyReflect * 0.4, 0.6);
 
     // Water sparkles
     float sparkle = noise(uv * 200.0 + time * 5.0);
@@ -92,27 +111,6 @@ vec3 scene(vec2 uv, float time) {
       col += vec3(0.5);
     }
   }
-
-  return col;
-}
-
-// Apply saturation
-vec3 applySaturation(vec3 col, float sat) {
-  float gray = dot(col, vec3(0.299, 0.587, 0.114));
-  return mix(vec3(gray), col, sat);
-}
-
-// Apply contrast
-vec3 applyContrast(vec3 col, float contrast) {
-  return (col - 0.5) * contrast + 0.5;
-}
-
-void main() {
-  vec2 uv = v_uv;
-  float time = u_time;
-
-  // Get scene color
-  vec3 col = scene(uv, time);
 
   // Apply brightness
   col += u_brightness;

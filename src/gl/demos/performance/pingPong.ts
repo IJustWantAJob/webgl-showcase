@@ -43,21 +43,21 @@ void main() {
     float self = texture(u_state, v_uv).r;
 
     float neighbors = 0.0;
-    neighbors += texture(u_state, v_uv + vec2(-1, -1) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(0, -1) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(1, -1) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(-1, 0) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(1, 0) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(-1, 1) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(0, 1) * texel).r;
-    neighbors += texture(u_state, v_uv + vec2(1, 1) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(-1.0, -1.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(0.0, -1.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(1.0, -1.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(-1.0, 0.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(1.0, 0.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(-1.0, 1.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(0.0, 1.0) * texel).r;
+    neighbors += texture(u_state, v_uv + vec2(1.0, 1.0) * texel).r;
 
     float next = 0.0;
     if (self > 0.5) {
-      // Alive
-      if (neighbors >= 2.0 && neighbors <= 3.0) next = 1.0;
+      // Alive - survives with 2 or 3 neighbors
+      if (neighbors >= 1.5 && neighbors <= 3.5) next = 1.0;
     } else {
-      // Dead
+      // Dead - born with exactly 3 neighbors
       if (neighbors >= 2.5 && neighbors <= 3.5) next = 1.0;
     }
 
@@ -68,21 +68,14 @@ void main() {
     float a = state.r;
     float b = state.g;
 
-    // Laplacian
-    float laplacianA = 0.0;
-    float laplacianB = 0.0;
+    // Laplacian using 3x3 kernel
+    vec4 left = texture(u_state, v_uv + vec2(-1.0, 0.0) * texel);
+    vec4 right = texture(u_state, v_uv + vec2(1.0, 0.0) * texel);
+    vec4 up = texture(u_state, v_uv + vec2(0.0, 1.0) * texel);
+    vec4 down = texture(u_state, v_uv + vec2(0.0, -1.0) * texel);
 
-    // 3x3 convolution kernel for Laplacian
-    float weights[9] = float[9](0.05, 0.2, 0.05, 0.2, -1.0, 0.2, 0.05, 0.2, 0.05);
-    int idx = 0;
-    for (int dy = -1; dy <= 1; dy++) {
-      for (int dx = -1; dx <= 1; dx++) {
-        vec4 sample = texture(u_state, v_uv + vec2(float(dx), float(dy)) * texel);
-        laplacianA += sample.r * weights[idx];
-        laplacianB += sample.g * weights[idx];
-        idx++;
-      }
-    }
+    float laplacianA = left.r + right.r + up.r + down.r - 4.0 * a;
+    float laplacianB = left.g + right.g + up.g + down.g - 4.0 * b;
 
     // Gray-Scott equations
     float dA = 1.0;  // Diffusion rate A
@@ -114,9 +107,8 @@ void main() {
 
   vec3 col;
   if (u_isGameOfLife) {
-    col = vec3(state.r);
-    // Add some color
-    col = mix(vec3(0.1, 0.1, 0.2), vec3(0.2, 0.8, 0.4), state.r);
+    // Add some color to game of life
+    col = mix(vec3(0.05, 0.05, 0.15), vec3(0.2, 0.9, 0.4), state.r);
   } else {
     // Reaction-diffusion coloring
     float a = state.r;
@@ -168,6 +160,10 @@ class PingPongDemo implements DemoInstance {
   async init(): Promise<void> {
     const gl = this.gl;
 
+    // Enable float texture rendering if available
+    gl.getExtension('EXT_color_buffer_float');
+    gl.getExtension('OES_texture_float_linear');
+
     this.simProgram = createProgram(gl, quadVertexShader, simulationShader);
     this.renderProgram = createProgram(gl, quadVertexShader, renderShader);
 
@@ -200,12 +196,15 @@ class PingPongDemo implements DemoInstance {
     this.initFBOs();
   }
 
-  private createFBO(width: number, height: number, data: Float32Array | null): FBO {
+  private createFBO(width: number, height: number, data: Uint8Array | null): FBO {
     const gl = this.gl;
 
     const texture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, data);
+
+    // Use RGBA8 for compatibility (works everywhere)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -233,16 +232,16 @@ class PingPongDemo implements DemoInstance {
       gl.deleteTexture(this.fbo2.texture);
     }
 
-    // Initialize with random state
-    const data = new Float32Array(this.simWidth * this.simHeight * 4);
+    // Initialize with random state (using Uint8 for RGBA8)
+    const data = new Uint8Array(this.simWidth * this.simHeight * 4);
 
     if (this.simulation === 'game-of-life') {
       for (let i = 0; i < this.simWidth * this.simHeight; i++) {
-        const alive = Math.random() > 0.7 ? 1.0 : 0.0;
+        const alive = Math.random() > 0.7 ? 255 : 0;
         data[i * 4] = alive;
         data[i * 4 + 1] = alive;
         data[i * 4 + 2] = alive;
-        data[i * 4 + 3] = 1.0;
+        data[i * 4 + 3] = 255;
       }
     } else {
       // Reaction-diffusion: start with A=1, B=0, with some B seeds
@@ -253,10 +252,10 @@ class PingPongDemo implements DemoInstance {
         const cy = this.simHeight / 2;
         const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
 
-        data[i * 4] = 1.0;  // A
-        data[i * 4 + 1] = dist < 20 || Math.random() > 0.99 ? 1.0 : 0.0;  // B
-        data[i * 4 + 2] = 0.0;
-        data[i * 4 + 3] = 1.0;
+        data[i * 4] = 255;  // A = 1
+        data[i * 4 + 1] = (dist < 20 || Math.random() > 0.98) ? 255 : 0;  // B
+        data[i * 4 + 2] = 0;
+        data[i * 4 + 3] = 255;
       }
     }
 
@@ -314,7 +313,7 @@ class PingPongDemo implements DemoInstance {
       gl.uniform2f(this.simUniforms.u_resolution, this.simWidth, this.simHeight);
       gl.uniform1f(this.simUniforms.u_feed, 0.055);
       gl.uniform1f(this.simUniforms.u_kill, 0.062);
-      gl.uniform1f(this.simUniforms.u_speed, this.speed);
+      gl.uniform1f(this.simUniforms.u_speed, this.speed * 0.5);
       gl.uniform1i(this.simUniforms.u_isGameOfLife, isGameOfLife ? 1 : 0);
 
       gl.drawArrays(gl.TRIANGLES, 0, 3);
