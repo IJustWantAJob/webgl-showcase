@@ -456,8 +456,8 @@ const colorGradingMetadata: DemoMetadata = {
 
 const DEMO_METADATA: Record<string, DemoMetadata> = {
   // Shaders
-  nebula: nebulaMetadata,
   voronoi: voronoiMetadata,
+  nebula: nebulaMetadata,
   raymarching: raymarchingMetadata,
   metaballs: metaballsMetadata,
   'sdf-2d': sdf2dMetadata,
@@ -623,5 +623,5 @@ export function getCategoryCounts(): Record<DemoCategory, number> {
  * Get the default demo ID to show on first load
  */
 export function getDefaultDemoId(): string {
-  return 'nebula';
+  return 'voronoi';
 }
