@@ -25,7 +25,7 @@ import type {
 // ============================================================================
 
 const initialState: PlaygroundState = {
-  activeDemoId: 'nebula',
+  activeDemoId: 'voronoi',
   isPaused: false,
   isFullscreen: false,
   quality: 'high',

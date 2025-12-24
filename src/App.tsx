@@ -11,7 +11,7 @@ import './App.css';
 
 function App() {
   // Get initial demo from URL query param
-  const initialDemoId = getInitialDemoFromURL() || 'nebula';
+  const initialDemoId = getInitialDemoFromURL() || 'voronoi';
 
   return (
     <PlaygroundProvider initialDemoId={initialDemoId}>
